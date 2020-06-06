@@ -10,15 +10,13 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_score, accuracy_score, classification_report, confusion_matrix
 from xgboost import XGBClassifier
 from sklearn.linear_model import LogisticRegression
-#import plotly.express as px
-#import plotly.graph_objects as go
+import plotly.express as px
 import seaborn as sns
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
-#from plotly.subplots import make_subplots
 import os
 import base64
-# from mlxtend.plotting import plot_decision_regions
+from mlxtend.plotting import plot_decision_regions
 from sklearn.decomposition import PCA
 
 # Load data
@@ -107,7 +105,6 @@ def XGB_metrics(df, params_set):
 	roc_auc_xgb = roc_auc_score(y_test, y_pred)
 	recall_xgb = recall_score(y_test, y_pred)
 	precision_xgb = precision_score(y_test, y_pred)
-	# report = classification_report(y_test, y_pred)
 	return accuracy_xgb, f1_xgb, roc_auc_xgb, recall_xgb, precision_xgb, model
 
 # Logistic Regression
@@ -142,15 +139,14 @@ def decision_boundary(df):
 	X = df.drop(columns = ['status'])
 	Y = df.status
 
-	# rob_scaler = RobustScaler()
-	# robust_scaled_df = rob_scaler.fit_transform(X)
-	# robust_scaled_df = pd.DataFrame(robust_scaled_df, columns=X.columns)
+	# Scaling
 	std_scaler = StandardScaler()
 	std_scaled_df = std_scaler.fit_transform(X)
 	std_scaled_df = pd.DataFrame(std_scaled_df, columns=X.columns)
 	X_train, _, y_train, _ = train_test_split(std_scaled_df, Y, random_state=0)
 
-	pca = PCA(n_components = 2) # Projection to 2d from 47d
+	# Projection to 2d from 47d
+	pca = PCA(n_components = 2) 
 	pca.fit(X_train.fillna(0))
 	pca_train = pca.transform(X_train.fillna(0))
 	df_train_pca = pd.DataFrame(data = pca_train, columns = ['pca-1', 'pca-2'])
@@ -190,11 +186,6 @@ def main():
 		st.write('')
 		st.write('Using machine learning algorithms to predict approval status of application')
 		st.write('')
-		#st.subheader('APP NAVIGATION')
-		#st.write('')
-		#st.write('This page is the Home Page, where you can have a basic view of the training dataset for modeling by below checkbox.') 
-		#st.write("You can also select the models from the left sidebar and use them to do the prediction for new data. There's a brief introduction for each model and their prediction performance on testing dataset. Click the checkbox there to use your own data and see how the model works and save it as a CSV file")
-		#st.write(f"Current training dataset: **{filename}** - You could change or update it by the top checkbox.")
 		st.write('')
 		
 		# Insert Check-Box to show the snippet of the data.
@@ -253,6 +244,7 @@ def main():
 			index = ['Accuracy', 'Precision (% we predicted as Declined are truly Declined)', 'Recall (% Declined have been identified)', 'ROC_AUC','F1'], columns = ['%']))
 			st.write('Decision Boundary after dimension reduction:')
 			decision_boundary(data)
+
 			# Prediction
 			try:
 				if(st.checkbox("Want to Use this model to predict on a new dataset?")):
@@ -306,17 +298,10 @@ def main():
 			except:
 				pass
 			st.write('')
-			try:
-				if(st.checkbox("Want to predict on your own Input? (We don't recommend it though :) ")):
-					user_prediction_data = accept_user_data() 		
-					pred = reg.predict(user_prediction_data)
-					st.write("The Predicted Class is: ", le.inverse_transform(pred)) # Inverse transform to get the original dependent value. 
-			except:
-				pass
+
 
 	if(choose_model == "XGB"):
 			st.sidebar.header('Hyper Parameters')
-			# st.sidebar.text(f'Current:{xgb}')
 			st.sidebar.markdown('You can tune the hyper parameters by siding')
 			max_depth = st.sidebar.slider('Select max_depth (default = 30)',3, 30, 30)
 			eta = st.sidebar.slider('Select learning rate (divided by 10) (default = 0.1)',0.01, 1.0, 1.0)
@@ -325,12 +310,9 @@ def main():
 			colsample_bylevel = st.sidebar.slider('Select colsample_bylevel (default = 0.5)',0.5, 1.0, 0.5)
 			colsample_bytree = st.sidebar.slider('Select colsample_bytree (default = 1.0)',0.5, 1.0, 1.0)
 			params_set = [max_depth, 0.1*eta, min_child_weight, subsample, colsample_bylevel, colsample_bytree]
-			
-			# st.write(params_set)
+
 			start_time = datetime.datetime.now()
 			accuracy_xgb, f1_xgb, roc_auc_xgb, recall_xgb, precision_xgb, xgb = XGB_metrics(data, params_set)
-			# params_list = [eta, colsample_bylevel, colsample_bytree, max_depth, subsample, min_child_weight]
-			# st.write(params_list)
 			st.subheader('Model Introduction')
 			st.write('')
 			st.write('XGBoost - e**X**treme **G**radient **B**oosting, is an implementation of gradient boosted **decision trees** designed for speed and performance, which has recently been dominating applied machine learning. We recommend you choose this model to do the prediction as it outperforms other two models in this app.')
@@ -347,6 +329,7 @@ def main():
 			st.table(pd.DataFrame(data = [round(accuracy_xgb * 100.0,2),round(precision_xgb * 100.0,2),round(recall_xgb*100,2), round(roc_auc_xgb*100,2),round(f1_xgb*100,2)], 
 			index = ['Accuracy', 'Precision (% we predicted as Declined are truly Declined)', 'Recall (% Declined have been identified)', 'ROC_AUC','F1'], columns = ['%']))
 			st.subheader('Feature Importance:')
+
 			# Plot feature importance
 			df_feature = pd.DataFrame.from_dict(xgb.get_booster().get_fscore(), orient='index')
 			df_feature.columns = ['Feature Importance']
@@ -364,6 +347,7 @@ def main():
 					st.write('Note: Currently, the CSV file should have **exactly the same** format with **training dataset**:', df.head(2))
 					st.write(f'Training dataset includes **{rows}** rows and **{columns}** columns')
 					st.write('')
+
 					if uploaded_file:
 						data = pd.read_csv(uploaded_file, low_memory=False)
 						st.write('-'*80)
@@ -406,11 +390,9 @@ def main():
 						b64 = base64.b64encode(csv.encode()).decode()  # some strings <-> bytes conversions necessary here
 						href = f'<a href="data:file/csv;base64,{b64}">Download CSV File</a> (right-click and save as &lt;some_name&gt;.csv)'
 						st.markdown(href, unsafe_allow_html=True)
-						# except:
-						# 	pass
-
 			except:
 				pass
+
 			st.write('')
 
 
