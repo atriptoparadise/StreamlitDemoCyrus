@@ -2,4 +2,3 @@ xgboost==0.82
 streamlit
 plotly
 mlxtend
-lightgbm
