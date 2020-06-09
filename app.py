@@ -15,6 +15,7 @@ from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import os
 import base64
+from PIL import Image
 from mlxtend.plotting import plot_decision_regions
 from sklearn.decomposition import PCA
 
@@ -166,7 +167,9 @@ def main():
 
 	st.sidebar.title('Menu')
 	choose_model = st.sidebar.selectbox("Choose the page or model",['Home','Logistic Regression',"XGB"])
-
+	st.sidebar.header('')
+	st.sidebar.header('About')
+	st.sidebar.info('This app is created by Cyrus Sha. Data showed in this app is fake and only for showing the process. You can learn more about it at https://medium.com/@qs2178.')
 	# Load data
 	df, rows, columns, filename = load_data()
 	data, drop_list = data_preprocessing(df)
@@ -191,12 +194,15 @@ def main():
 
 	# Home page building
 	if(choose_model == "Home"):
-		st.title("Streamlit Demo")
+		st.title("Streamlit Demo :rocket:")
 		st.write('')
+		st.write('')
+		image = Image.open('photo.jpeg')
+		st.image(image, caption='', width=600)
 		st.write('')
 		st.subheader('INTRODUCTION')
-		st.write('')
-		st.write('Using machine learning algorithms to predict approval status of application')
+		# st.write('')
+		st.write('Build and deploy your own Machine Learning web application by Streamlit and Heroku. :sunglasses:')
 		st.write('')
 		st.write('')
 		
@@ -226,7 +232,10 @@ def main():
 			st.write('Also converted column "time" to datetime format')
 			st.write(feature_summary(df))
 			st.write('For each columns in our original dataset, we can see the statistics summary (Null Value Count, Unique Value Count, Data Type, etc.)')
-
+		st.write('---')
+		st.write('Author: Cyrus Sha')
+		st.write('[Linkedin](https://www.linkedin.com/in/qiuwu-cyrus-sha/) | [Github](https://github.com/atriptoparadise/StreamlitDemoCyrus) | [Medium](https://medium.com/@qs2178)')
+		st.write('')
 	# Page for Logistic Regression
 	if(choose_model == "Logistic Regression"):
 			start_time = datetime.datetime.now()
@@ -337,8 +346,6 @@ def main():
 			df_feature.columns = ['Feature Importance']
 			feature_importance = df_feature.sort_values(by = 'Feature Importance', ascending= False).reset_index()
 			fig = px.bar(feature_importance, x = 'index', y = 'Feature Importance')
-			# feature_importance = df_feature.sort_values(by = 'Feature Importance', ascending= False).T
-			# fig = px.bar(feature_importance, x = feature_importance.columns, y = 'Feature Importance')
 			fig.update_xaxes(tickangle=45, title_text='Features')
 			fig.update_yaxes(title_text='Feature Importance')
 			st.plotly_chart(fig)
