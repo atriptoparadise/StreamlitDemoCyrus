@@ -11,7 +11,6 @@ from sklearn.metrics import precision_score, recall_score, f1_score, roc_auc_sco
 from xgboost import XGBClassifier
 from sklearn.linear_model import LogisticRegression
 import plotly.express as px
-import seaborn as sns
 from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import os
@@ -30,14 +29,43 @@ def load_data(filename=None):
     df = pd.read_csv(f"./{filename_default}")
     rows = df.shape[0]
     columns = df.shape[1]
-
     # Drop rows with all Null
     df = df.dropna(axis =0, how = 'all')
     df.time = [datetime.datetime.strptime(x, '%m/%d/%Y %H:%M') for x in df.time]
     return df, rows, columns, filename_default
 
-# Feature summary function
+def data_preprocessing(df, manual_drop_list=None):
+	"""Return processed data and column list that need to be dropped."""
+
+    # Drop features with only 1 or all unique categories
+	if manual_drop_list:
+		drop_list = manual_drop_list
+	else:
+		drop_list = []
+		for i in df.columns:
+			if df[i].nunique() <= 1 or df[i].nunique() >= df.shape[0]*0.95:
+				drop_list.append(i)
+	df = df.drop(columns = drop_list)
+
+    # Convert target variable
+	df = df.replace({'status': {'Approved': 0, 'Declined': 1}})
+    
+    # Basic Feature Engineering
+	df['weekday'] = [x.weekday() for x in df.time]
+	df['hour'] = [int(x.strftime('%H')) for x in df.time]
+	max_a = df.time.max()
+	min_a = df.time.min()
+	min_norm, max_norm = -1, 1
+	df['date'] = (df.time - min_a) *(max_norm - min_norm) / (max_a-min_a) + min_norm
+	df.C2 = df.C1 + df.C3
+	df = df.drop(columns = ['time', 'X'])
+	df['sum_X'] = df.iloc[:, 9:33].sum(axis = 1)
+
+	return df, drop_list
+
 def feature_summary(data):
+	"""Return columns' information."""
+
 	print('DataFrame shape')
 	print('rows:',data.shape[0])
 	print('cols:',data.shape[1])
@@ -52,40 +80,14 @@ def feature_summary(data):
 			df.at[col,'Mean']=data[col].mean()
 			df.at[col,'Std']=data[col].std()
 			df.at[col,'Skewness']=data[col].skew()
-		df.at[col,'Sample_values']=list(data[col].unique())      
+		df.at[col,'Sample_values']=list(data[col].unique()) 
+
 	return(df.fillna('-'))
 
-# Data preprocessing for modeling
-def data_preprocessing(df, manual_drop_list=None):
-    # Drop features with only 1 or all unique categories
-    if manual_drop_list:
-        drop_list = manual_drop_list
-    else:
-        drop_list = []
-        for i in df.columns:
-            if df[i].nunique() <= 1 or df[i].nunique() >= df.shape[0]*0.95:
-                drop_list.append(i)
-    df = df.drop(columns = drop_list)
-
-    # Convert target variable
-    df = df.replace({'status': {'Approved': 0, 'Declined': 1}})
-    
-    # Basic Feature Engineering
-    df['weekday'] = [x.weekday() for x in df.time]
-    df['hour'] = [int(x.strftime('%H')) for x in df.time]
-    max_a = df.time.max()
-    min_a = df.time.min()
-    min_norm, max_norm = -1, 1
-    df['date'] = (df.time - min_a) *(max_norm - min_norm) / (max_a-min_a) + min_norm
-    df.C2 = df.C1 + df.C3
-    df = df.drop(columns = ['time', 'X'])
-    df['sum_Q'] = df.iloc[:, 9:33].sum(axis = 1)
-
-    return df, drop_list
-
-# XGBoost
 @st.cache(allow_output_mutation=True)
 def XGB_metrics(df, params_set):
+	"""Return metrics and model for XGB."""
+
 	X = df.drop(columns = ['status'])
 	Y = df.status
 	X_train, X_test, y_train, y_test = train_test_split(X, Y, random_state=0)
@@ -107,9 +109,10 @@ def XGB_metrics(df, params_set):
 	precision_xgb = precision_score(y_test, y_pred)
 	return accuracy_xgb, f1_xgb, roc_auc_xgb, recall_xgb, precision_xgb, model
 
-# Logistic Regression
 @st.cache(suppress_st_warning=True)	
 def logistic_metrics(df):
+	"""Return metrics and model for Logistic Regression."""
+
 	X = df.drop(columns = ['status'])
 	Y = df.status
 
@@ -134,8 +137,9 @@ def logistic_metrics(df):
 
 	return accuracy_reg, f1_reg, roc_auc_reg, recall_reg, precision_reg, model
 
-# Plot decision boundary for Logistic Regression	
 def decision_boundary(df):
+	"""Plot decision boundary for Logistic Regression."""
+
 	X = df.drop(columns = ['status'])
 	Y = df.status
 
@@ -162,15 +166,21 @@ def main():
 
 	st.sidebar.title('Menu')
 	choose_model = st.sidebar.selectbox("Choose the page or model",['Home','Logistic Regression',"XGB"])
+
+	# Load data
 	df, rows, columns, filename = load_data()
 	data, drop_list = data_preprocessing(df)
+
+	# Provide checkbox for uploading different training dataset
 	if st.checkbox('Want to use other training set?'):
 			uploaded_file = st.file_uploader("Choose a CSV file", type="csv")
 			st.text("Note: Don't easily change training set which may bring big influence on prediction")
-			if uploaded_file is not None:
+
+			if uploaded_file:
 				df = pd.read_csv(uploaded_file, low_memory=False)
 				rows = df.shape[0]
 				columns = df.shape[1]
+
 				# Drop rows with all Null
 				df = df.dropna(axis =0, how = 'all')
 				df.time = [datetime.datetime.strptime(x, '%m/%d/%Y %H:%M') for x in df.time]
@@ -178,6 +188,8 @@ def main():
 				filename = 'Uploaded file'
 			else:
 				pass
+	
+	# Home page building
 	if(choose_model == "Home"):
 		st.title("Streamlit Demo")
 		st.write('')
@@ -192,11 +204,12 @@ def main():
 		if st.checkbox('Show Data'):
 				st.subheader("Raw data")	
 				st.write(f'Input dataset includes **{rows}** rows and **{columns}** columns')
-				st.write(df.head()) # Displays the instance of our dataset on the web app
+				st.write(df.head()) 
 				st.subheader('Processed data')
 				st.write(f'After Pre-processing the data for modeling, dataset includes **{data.shape[0]}** rows and **{data.shape[1]}** columns')
 				st.write(data.head())
 
+		# show data visulization
 		if st.checkbox('Show Visualization'):
 			fig = px.histogram(df.status, x = 'status', title = 'Distribution of Target Variable "status"')
 			st.plotly_chart(fig)
@@ -206,25 +219,15 @@ def main():
 			st.plotly_chart(fig)
 			st.write('The distribution of date time, we can see most of the data are from recent two months.')
 			st.write('-'*60)
-			st.subheader('Pair Plot for age, height, and weight')
-			sns.pairplot(df[['age','height','weight', 'status']], hue = 'status')
-			st.pyplot()
-			st.markdown('We can have a basic look of the relationship between Age, Height, Weight, and our target variable - STATUS.')
-			st.write('For example, from the Weight-Age plot, we can tell that people who get Declined normally have higher weight across all age levels compared with all other three status categories.')
-			st.write('-'*60)
-			st.subheader('Pair Plot for C1, C2, and C3')
-			sns.pairplot(data[['C1','C2', 'C3', 'status']], hue = 'status')
-			st.pyplot()
-			st.write('The same with previous one, we can see the relationship between C1, C2, C3, and status.')
-			st.write('Note: For status, 1 - Declined; 0 - Approved')
 
-
+		# Show feature summary
 		if st.checkbox('Show Feature Summary'):
 			st.write('Raw data after dropping rows that have NULL for every column; ')
 			st.write('Also converted column "time" to datetime format')
 			st.write(feature_summary(df))
 			st.write('For each columns in our original dataset, we can see the statistics summary (Null Value Count, Unique Value Count, Data Type, etc.)')
 
+	# Page for Logistic Regression
 	if(choose_model == "Logistic Regression"):
 			start_time = datetime.datetime.now()
 			accuracy_reg, f1_reg, roc_auc_reg, recall_reg, precision_reg, reg = logistic_metrics(data)
@@ -288,6 +291,7 @@ def main():
 						st.write('ROC AUC:', round(100*roc_auc_pending,2), '%')
 						st.write('F1:', round(100*f1_pending,2), '%')
 
+						# Download the prediction as a CSV file
 						st.write('')
 						st.subheader('Want to download the prediction results?')
 						csv = data.to_csv(index=False)
@@ -297,9 +301,8 @@ def main():
 
 			except:
 				pass
-			st.write('')
 
-
+	# Page for XGB
 	if(choose_model == "XGB"):
 			st.sidebar.header('Hyper Parameters')
 			st.sidebar.markdown('You can tune the hyper parameters by siding')
@@ -315,9 +318,8 @@ def main():
 			accuracy_xgb, f1_xgb, roc_auc_xgb, recall_xgb, precision_xgb, xgb = XGB_metrics(data, params_set)
 			st.subheader('Model Introduction')
 			st.write('')
-			st.write('XGBoost - e**X**treme **G**radient **B**oosting, is an implementation of gradient boosted **decision trees** designed for speed and performance, which has recently been dominating applied machine learning. We recommend you choose this model to do the prediction as it outperforms other two models in this app.')
+			st.write('XGBoost - e**X**treme **G**radient **B**oosting, is an implementation of gradient boosted **decision trees** designed for speed and performance, which has recently been dominating applied machine learning. We recommend you choose this model to do the prediction.')
 			st.write('See more from this blog: https://machinelearningmastery.com/gentle-introduction-xgboost-applied-machine-learning/')
-			st.write("If you don't really understand the math and theory behind it, that's ok. You can just use it :) ")
 			st.write('')
 			st.subheader('XGB metrics on testing dataset')
 			st.write('')
@@ -353,7 +355,6 @@ def main():
 						st.write('-'*80)
 						st.write('Uploaded data:', data.head(30))
 						st.write(f'Uploaded data includes **{data.shape[0]}** rows and **{data.shape[1]}** columns')
-						# try:
 						start_time = datetime.datetime.now()
 						data = data.dropna(axis =0, how = 'all')
 						data.time = [datetime.datetime.strptime(x, '%m/%d/%Y %H:%M') for x in data.time]
@@ -384,16 +385,15 @@ def main():
 						st.write('ROC AUC:', round(100*roc_auc_pending,2), '%')
 						st.write('F1:', round(100*f1_pending,2), '%')
 
+						# Download prediction as a CSV file 
 						st.write('')
 						st.subheader('Want to download the prediction results?')
 						csv = data.to_csv(index=False)
-						b64 = base64.b64encode(csv.encode()).decode()  # some strings <-> bytes conversions necessary here
+						b64 = base64.b64encode(csv.encode()).decode() 
 						href = f'<a href="data:file/csv;base64,{b64}">Download CSV File</a> (right-click and save as &lt;some_name&gt;.csv)'
 						st.markdown(href, unsafe_allow_html=True)
 			except:
 				pass
-
-			st.write('')
 
 
 if __name__ == "__main__":
