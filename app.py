@@ -188,7 +188,7 @@ def main():
 				filename = 'Uploaded file'
 			else:
 				pass
-	
+
 	# Home page building
 	if(choose_model == "Home"):
 		st.title("Streamlit Demo")
